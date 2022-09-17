@@ -1,4 +1,4 @@
-# quizapp-rest-api-jwt-auth
+# quizapp-api-sequelize-jwt-auth
 This is a mini quiz app rest API made with Nodejs, Sequelize, JWT, Express and MySQL
 
 # Live demo
@@ -77,7 +77,7 @@ npm install
 npm run start
 ```
 
-## Run - Dev (watch)
+## Run - dev (watch)
 ```
 npm run start:dev
 ```
