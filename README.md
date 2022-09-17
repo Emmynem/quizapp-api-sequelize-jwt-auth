@@ -74,5 +74,10 @@ npm install
 
 # Run
 ```
-node server.js
+npm run start
+```
+
+## Run - Dev (watch)
+```
+npm run start:dev
 ```
