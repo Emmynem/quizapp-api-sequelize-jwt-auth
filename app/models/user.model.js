@@ -1,16 +1,22 @@
-module.exports = (sequelize, Sequelize) => {
+export default (sequelize, Sequelize) => {
     const User = sequelize.define("users", {
-        firstName: {
+        unique_id: {
+            type: Sequelize.STRING(40),
+            allowNull: false,
+            unique: true
+        },
+        firstname: {
             type: Sequelize.STRING(25),
             allowNull: false,
         },
-        lastName: {
+        lastname: {
             type: Sequelize.STRING(25),
             allowNull: false,
         },
         email: {
             type: Sequelize.STRING,
             allowNull: false,
+            unique: true
         },
         password: {
             type: Sequelize.STRING,

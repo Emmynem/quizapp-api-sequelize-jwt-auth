@@ -1,16 +1,22 @@
-module.exports = (sequelize, Sequelize) => {
+export default (sequelize, Sequelize) => {
     const Admin = sequelize.define("admin", {
-        firstName: {
-            type: Sequelize.STRING(25),
+        unique_id: {
+            type: Sequelize.STRING(40),
+            allowNull: false,
+            unique: true
+        },
+        firstname: {
+            type: Sequelize.STRING(50),
             allowNull: false,
         },
-        lastName: {
-            type: Sequelize.STRING(25),
+        lastname: {
+            type: Sequelize.STRING(50),
             allowNull: false,
         },
         email: {
             type: Sequelize.STRING,
             allowNull: false,
+            unique: true
         },
         password: {
             type: Sequelize.STRING,

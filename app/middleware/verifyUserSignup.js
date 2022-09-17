@@ -1,23 +1,32 @@
-const db = require("../models");
+import { validationResult, matchedData } from 'express-validator';
+import { ConflictError, ValidationError  } from '../common/http.js';
+import db from "../models/index.js";
 const User = db.user;
 
-checkDuplicateEmail = (req, res, next) => {
-    User.findOne({
-        where: {
-            email: req.body.email
-        }
-    }).then(user => {
-        if(user){
-            res.status(400).send({
-                message: "Failed! Email is already in use!"
-            });
-            return;
-        }
-        next();
-    });
+const checkDuplicateEmail = (req, res, next) => {
+    const errors = validationResult(req);
+
+    if (!errors.isEmpty()) {
+        ValidationError(res, "Validation Error Occured", errors.array())
+    }
+    else {
+        const payload = matchedData(req);
+
+        User.findOne({
+            where: {
+                email: payload.email,
+            }
+        }).then(user => {
+            if (user) {
+                ConflictError(res, "Email is already in use!", null);
+            } else {
+                next();
+            }
+        });
+    }
 };
 
 const verifyUserSignUp = {
     checkDuplicateEmail: checkDuplicateEmail
 }
-module.exports = verifyUserSignUp;
+export default verifyUserSignUp;

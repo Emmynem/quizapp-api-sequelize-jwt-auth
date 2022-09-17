@@ -1,7 +1,9 @@
-const { verifyAdminSignUp } = require("../middleware");
-const { verifyUserSignUp } = require("../middleware");
-const controller = require("../controllers/auth.controller");
-module.exports = function (app) {
+import { verifyAdminSignUp, verifyUserSignUp } from "../middleware/index.js";
+import { adminSignup, adminSignin, userSignup, userSignin } from "../controllers/auth.controller.js";
+import { adminRules } from "../rules/admin.rules.js";
+import { userRules } from "../rules/user.rules.js";
+
+export default function (app) {
     app.use(function (req, res, next) {
         res.header(
             "Access-Control-Allow-Headers",
@@ -10,19 +12,21 @@ module.exports = function (app) {
         next();
     });
     app.post(
-        "/api/quizapp/auth/backoffice/signup",
+        "/api/auth/backoffice/signup",
         [
+            adminRules.forAdding,
             verifyAdminSignUp.checkDuplicateEmail
         ],
-        controller.adminSignup
+        adminSignup
     );
-    app.post("/api/quizapp/auth/backoffice/signin", controller.adminSignin);
+    app.post("/api/auth/backoffice/signin", [adminRules.forLogin], adminSignin);
     app.post(
-        "/api/quizapp/auth/signup",
+        "/api/auth/signup",
         [
+            userRules.forAdding,
             verifyUserSignUp.checkDuplicateEmail
         ],
-        controller.userSignup
+        userSignup
     );
-    app.post("/api/quizapp/auth/signin", controller.userSignin);
+    app.post("/api/auth/signin", [userRules.forLogin], userSignin);
 };

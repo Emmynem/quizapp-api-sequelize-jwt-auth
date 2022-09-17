@@ -1,48 +1,52 @@
-const jwt = require("jsonwebtoken");
-const config = require("../config/auth.config.js");
-const db = require("../models");
+import jwt from "jsonwebtoken";
+import { secret } from "../config/auth.config.js";
+import { UnauthorizedError, ForbiddenError } from '../common/index.js';
+import db from "../models/index.js";
+const { verify } = jwt;
 const User = db.user;
 const Admin = db.admin;
 
-verifyToken = (req, res, next) => {
-    let token = req.headers["x-access-token"];
+const verifyToken = (req, res, next) => {
+    let token = req.headers["x-access-token"] || req.query.token || req.body.token || '';
     if (!token) {
-        return res.status(403).send({
-            message: "No token provided!"
+        ForbiddenError(res, "No token provided!", null);
+    } else {
+        verify(token, secret, (err, decoded) => {
+            if (err) {
+                UnauthorizedError(res, "Unauthorized!", null);
+            } else {
+                req.UNIQUE_ID = decoded.unique_id;
+                next();
+            }
         });
     }
-    jwt.verify(token, config.secret, (err, decoded) => {
-        if (err) {
-            return res.status(401).send({
-                message: "Unauthorized!"
-            });
+};
+
+const isAdmin = (req, res, next) => {
+    Admin.findOne({
+        where: {
+            unique_id: req.UNIQUE_ID
         }
-        req.the_ID = decoded.id;
-        next();
+    }).then(admin => {
+        if (!admin) {
+            ForbiddenError(res, "Require Admin!", null);
+        } else {
+            next();
+        }
     });
 };
 
-isAdmin = (req, res, next) => {
-    Admin.findByPk(req.the_ID).then(admin => {
-        if(!admin){
-            res.status(403).send({
-                message: "Require Admin!"
-            });
-            return;
+const isUser = (req, res, next) => {
+    User.findOne({
+        where: {
+            unique_id: req.UNIQUE_ID
         }
-        next();
-    });
-};
-
-isUser = (req, res, next) => {
-    User.findByPk(req.the_ID).then(user => {
-        if (!user) {
-            res.status(403).send({
-                message: "Require User!"
-            });
-            return;
+    }).then(admin => {
+        if (!admin) {
+            ForbiddenError(res, "Require User!", null);
+        } else {
+            next();
         }
-        next();
     });
 };
 
@@ -51,4 +55,4 @@ const authJwt = {
     isAdmin: isAdmin,
     isUser: isUser
 }
-module.exports = authJwt;
+export default authJwt;

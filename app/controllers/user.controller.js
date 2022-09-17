@@ -1,73 +1,99 @@
-const db = require("../models");
+import { validationResult, matchedData } from 'express-validator';
+import { ServerError, SuccessResponse, ValidationError, OtherSuccessResponse, NotFoundError } from '../common/index.js';
+import db from "../models/index.js";
+
 const User = db.user;
 
-exports.getUsers = (req, res) => {
-    User.findAll({
-        attributes: { exclude: ['id', 'password'] }
+export function getUsers(req, res) {
+    User.findAndCountAll({
+        attributes: { exclude: ['password', 'id'] },
+        order: [
+            ['createdAt', 'DESC']
+        ]
     }).then(users => {
-        if (!users) {
-            return res.status(404).send({ message: "Users Not found." });
+        if (!users || users.length == 0) {
+            SuccessResponse(res, "Users Not found", []);
+        } else {
+            SuccessResponse(res, "Users loaded", users);
         }
-        res.status(200).send(users);
     }).catch(err => {
-        res.status(500).send({ message: err.message });
+        ServerError(res, err.message, null);
     });
-}
+};
 
-exports.getUser = (req, res) => {
-    User.findByPk(req.params.id, {
-        attributes: { exclude: ['id', 'password'] }
-    }).then(user => {
-        if (!user) {
-            return res.status(404).send({ message: `User with id - ${req.params.id} Not found.` });
-        }
-        res.status(200).send(user);
-    }).catch(err => {
-        res.status(500).send({ message: err.message });
-    });
-}
+export function getUser(req, res) {
+    const errors = validationResult(req);
 
-exports.updateUser = (req, res) => {
-    if (!req.body) {
-        res.status(400).send({
-            message: "Content can not be empty!"
+    if (!errors.isEmpty()) {
+        ValidationError(res, "Validation Error Occured", errors.array())
+    }
+    else {
+        const payload = matchedData(req);
+
+        User.findOne({
+            attributes: { exclude: ['password', 'id', 'unique_id'] },
+            where: {
+                ...payload
+            }
+        }).then(admin => {
+            if (!admin) {
+                NotFoundError(res, "User not found", null);
+            } else {
+                SuccessResponse(res, "User loaded", admin);
+            }
+        }).catch(err => {
+            ServerError(res, err.message, null);
         });
     }
+};
 
-    User.update({
-        firstName: req.body.firstname,
-        lastName: req.body.lastname
-    }, {
-        where: {
-            id: req.params.id
-        }
-    }).then(data => {
-        if (data == 0) {
-            return res.status(404).send({ message: "User Not found." });
-        }
-        res.status(200).send(req.body);
-    }).catch(err => {
-        res.status(500).send({ message: err.message });
-    });
-}
+export function updateUser(req, res) {
+    const user_unique_id = req.UNIQUE_ID;
+    const errors = validationResult(req);
 
-exports.removeUser = (req, res) => {
-    if (!req.body) {
-        res.status(400).send({
-            message: "Content can not be empty!"
+    if (!errors.isEmpty()) {
+        ValidationError(res, "Validation Error Occured", errors.array())
+    }
+    else {
+        const payload = matchedData(req);
+
+        User.update({ ...payload }, {
+            where: {
+                unique_id: user_unique_id
+            }
+        }).then(data => {
+            if (data == 0) {
+                NotFoundError(res, "User not found", null);
+            } else {
+                OtherSuccessResponse(res, "User details updated successfully!");
+            }
+        }).catch(err => {
+            ServerError(res, err.message, null);
         });
     }
+};
 
-    User.destroy({
-        where: {
-            id: req.params.id
-        }
-    }).then(data => {
-        if (!data) {
-            return res.status(404).send({ message: "User Not found." });
-        }
-        res.status(200).send({ message: `User wiwth id - ${req.params.id} has been removed` });
-    }).catch(err => {
-        res.status(500).send({ message: err.message });
-    });
-}
+export function removeUser(req, res) {
+    const errors = validationResult(req);
+
+    if (!errors.isEmpty()) {
+        ValidationError(res, "Validation Error Occured", errors.array())
+    }
+    else {
+        const payload = matchedData(req);
+
+        User.destroy({
+            where: {
+                ...payload
+            }
+        }).then(data => {
+            if (!data) {
+                NotFoundError(res, "User not found", null);
+            } else {
+                OtherSuccessResponse(res, "User details deleted successfully!");
+            }
+        }).catch(err => {
+            ServerError(res, err.message, null);
+        });
+    }
+};

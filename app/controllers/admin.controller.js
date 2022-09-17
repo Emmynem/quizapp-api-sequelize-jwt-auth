@@ -1,73 +1,121 @@
-const db = require("../models");
+import { validationResult, matchedData } from 'express-validator';  
+import { ServerError, SuccessResponse, ValidationError, OtherSuccessResponse, NotFoundError } from '../common/index.js';
+import db from "../models/index.js";
+
 const Admin = db.admin;
+const Op = db.Sequelize.Op;
 
-exports.getAdmins = (req, res) => {
-    Admin.findAll({
-        attributes: { exclude: ['password'] }
-    }).then(admins => {
-        if (!admins) {
-            return res.status(404).send({ message: "Admins Not found." });
-        }
-        res.status(200).send(admins);
-    }).catch(err => {
-        res.status(500).send({ message: err.message });
-    });
-}
-
-exports.getAdmin = (req, res) => {
-    Admin.findByPk(req.params.id, {
-        attributes: { exclude: ['password'] }
-    }).then(admin => {
-        if (!admin) {
-            return res.status(404).send({ message: `Admin with id - ${req.params.id} Not found.` });
-        }
-        res.status(200).send(admin);
-    }).catch(err => {
-        res.status(500).send({ message: err.message });
-    });
-}
-
-exports.updateAdmin = (req, res) => {
-    if (!req.body) {
-        res.status(400).send({
-            message: "Content can not be empty!"
-        });
-    }
-
-    Admin.update({
-        firstName: req.body.firstname,
-        lastName: req.body.lastname
-    }, {
-        where : {
-            id: req.params.id
-        }
-    }).then(data => {
-        if (data == 0) {
-            return res.status(404).send({ message: "Admin Not found." });
-        }
-        res.status(200).send(req.body);
-    }).catch(err => {
-        res.status(500).send({ message: err.message });
-    });
-}   
-
-exports.removeAdmin = (req, res) => {
-    if (!req.body) {
-        res.status(400).send({
-            message: "Content can not be empty!"
-        });
-    }
-
-    Admin.destroy({
+export function getAdmins(req, res) {
+    Admin.findAndCountAll({
+        attributes: { exclude: ['password', 'id'] },
         where: {
-            id: req.params.id
+            id: {
+                [Op.ne]: 1
+            }
+        },
+        order: [
+            ['createdAt', 'DESC']
+        ]
+    }).then(admins => {
+        if (!admins || admins.length == 0) {
+            SuccessResponse(res, "Admins Not found", []);
+        } else {
+            SuccessResponse(res, "Admins loaded", admins);
         }
-    }).then(data => {
-        if (!data) {
-            return res.status(404).send({ message: "Admin Not found." });
-        }
-        res.status(200).send({ message : `Admin wiwth id - ${req.params.id} has been removed` });
     }).catch(err => {
-        res.status(500).send({ message: err.message });
+        ServerError(res, err.message, null);
     });
-}
+};
+
+export function getAdmin(req, res) {
+    const errors = validationResult(req);
+
+    if (!errors.isEmpty()) {
+        ValidationError(res, "Validation Error Occured", errors.array())
+    }
+    else {
+        const payload = matchedData(req);
+
+        Admin.findOne({
+            attributes: { exclude: ['password', 'id'] },
+            where: {
+                ...payload,
+                id: {
+                    [Op.ne]: 1
+                }
+            }
+        }).then(admin => {
+            if (!admin) {
+                NotFoundError(res, "Admin not found", null);
+            } else {
+                SuccessResponse(res, "Admin loaded", admin);
+            }
+        }).catch(err => {
+            ServerError(res, err.message, null);
+        });
+    }
+};
+
+export function updateAdmin(req, res) {
+    const admin_unique_id = req.UNIQUE_ID;
+    const errors = validationResult(req);
+
+    if (!errors.isEmpty()) {
+        ValidationError(res, "Validation Error Occured", errors.array())
+    }
+    else {
+        const payload = matchedData(req);
+
+        Admin.update({ ...payload }, {
+            where: {
+                unique_id: admin_unique_id,
+                id: {
+                    [Op.ne]: 1
+                }
+            }
+        }).then(data => {
+            if (data == 0) {
+                NotFoundError(res, "Admin not found", null);
+            } else {
+                OtherSuccessResponse(res, "Admin details updated successfully!");
+            }
+        }).catch(err => {
+            ServerError(res, err.message, null);
+        });
+    }
+};
+
+export function removeAdmin(req, res) {
+    const admin_unique_id = req.UNIQUE_ID;
+    const errors = validationResult(req);
+
+    if (!errors.isEmpty()) {
+        ValidationError(res, "Validation Error Occured", errors.array())
+    }
+    else {
+        const payload = matchedData(req);
+
+        Admin.destroy({
+            where: {
+                ...payload,
+                [Op.and]: [{
+                    id: {
+                        [Op.ne]: 1
+                    }
+                }, {
+                    unique_id: {
+                        [Op.ne]: admin_unique_id
+                    }
+                }]
+            }
+        }).then(data => {
+            if (!data) {
+                NotFoundError(res, "Admin not found", null);
+            } else {
+                OtherSuccessResponse(res, "Admin details deleted successfully!");
+            }
+        }).catch(err => {
+            ServerError(res, err.message, null);
+        });
+    }
+};

@@ -1,9 +1,14 @@
-const { authJwt } = require("../middleware");
-const admin_controller = require("../controllers/admin.controller");
-const user_controller = require("../controllers/user.controller");
-const questions_controller = require("../controllers/questions.controller");
-const results_controller = require("../controllers/results.controller");
-module.exports = function (app) {
+import { authJwt } from "../middleware/index.js";
+import { getAdmins, getAdmin, updateAdmin, removeAdmin } from "../controllers/admin.controller.js";
+import { getUsers, getUser, updateUser, removeUser } from "../controllers/user.controller.js";
+import { getQuestions, getQuestion, getAdminQuestions, addQuestion, updateQuestion, removeQuestion } from "../controllers/questions.controller.js";
+import { addResult, getAllResults, getUserResults } from "../controllers/results.controller.js";
+import { adminRules } from "../rules/admin.rules.js";
+import { userRules } from "../rules/user.rules.js";
+import { questionsRules } from "../rules/questions.rules.js";
+import { resultsRules } from "../rules/results.rules.js";
+
+export default function (app) {
     app.use(function (req, res, next) {
         res.header(
             "Access-Control-Allow-Headers",
@@ -13,61 +18,61 @@ module.exports = function (app) {
     });
 
     // Question routes ------
-    app.get("/api/quizapp/questions", questions_controller.getQuestions);
-    app.get("/api/quizapp/question/:id", questions_controller.getQuestion);
+    app.get("/api/questions", getQuestions);
+    app.get("/api/question", [questionsRules.forFindingQuestion], getQuestion);
     app.get(
-        "/api/quizapp/backoffice/questions",
+        "/api/backoffice/questions",
         [authJwt.verifyToken, authJwt.isAdmin],
-        questions_controller.getAdminQuestions
+        getAdminQuestions
     );
     app.get(
-        "/api/quizapp/backoffice/question/:id",
-        [authJwt.verifyToken, authJwt.isAdmin],
-        questions_controller.getQuestion
+        "/api/backoffice/question",
+        [authJwt.verifyToken, authJwt.isAdmin, questionsRules.forFindingQuestion],
+        getQuestion
     );
     app.post(
-        "/api/quizapp/backoffice/question",
-        [authJwt.verifyToken, authJwt.isAdmin],
-        questions_controller.addQuestion
+        "/api/backoffice/question",
+        [authJwt.verifyToken, authJwt.isAdmin, questionsRules.forAdding],
+        addQuestion
     );
     app.put(
-        "/api/quizapp/backoffice/question/update/:id",
-        [authJwt.verifyToken, authJwt.isAdmin],
-        questions_controller.updateQuestion
+        "/api/backoffice/question",
+        [authJwt.verifyToken, authJwt.isAdmin, questionsRules.forUpdating],
+        updateQuestion
     );
     app.delete(
-        "/api/quizapp/backoffice/question/remove/:id",
-        [authJwt.verifyToken, authJwt.isAdmin],
-        questions_controller.removeQuestion
+        "/api/backoffice/question",
+        [authJwt.verifyToken, authJwt.isAdmin, questionsRules.forFindingQuestion],
+        removeQuestion
     );
     // ----- Question routes
     
     // Admin routes -----
 
     app.get(
-        "/api/quizapp/backoffice/admins",
+        "/api/backoffice/admins",
         [authJwt.verifyToken, authJwt.isAdmin],
-        admin_controller.getAdmins
+        getAdmins
     );
     app.get(
-        "/api/quizapp/backoffice/users",
+        "/api/backoffice/users",
         [authJwt.verifyToken, authJwt.isAdmin],
-        user_controller.getUsers
+        getUsers
     );
     app.get(
-        "/api/quizapp/backoffice/admin/:id",
-        [authJwt.verifyToken, authJwt.isAdmin],
-        admin_controller.getAdmin
+        "/api/backoffice/admin",
+        [authJwt.verifyToken, authJwt.isAdmin, adminRules.forFindingAdmin],
+        getAdmin
     );
     app.put(
-        "/api/quizapp/backoffice/update/:id",
-        [authJwt.verifyToken, authJwt.isAdmin],
-        admin_controller.updateAdmin
+        "/api/backoffice/admin",
+        [authJwt.verifyToken, authJwt.isAdmin, adminRules.forUpdating],
+        updateAdmin
     );
     app.delete(
-        "/api/quizapp/backoffice/remove/:id",
-        [authJwt.verifyToken, authJwt.isAdmin],
-        admin_controller.removeAdmin
+        "/api/backoffice/admin",
+        [authJwt.verifyToken, authJwt.isAdmin, adminRules.forFindingAdmin],
+        removeAdmin
     );
 
     // ----- Admin routes
@@ -75,19 +80,19 @@ module.exports = function (app) {
     // User routes -----
 
     app.get(
-        "/api/quizapp/profile/:id",
+        "/api/user",
         [authJwt.verifyToken, authJwt.isUser],
-        user_controller.getUser
+        getUser
     );
     app.put(
-        "/api/quizapp/update/:id",
-        [authJwt.verifyToken, authJwt.isUser],
-        user_controller.updateUser
+        "/api/user",
+        [authJwt.verifyToken, authJwt.isUser, userRules.forUpdating],
+        updateUser
     );
     app.delete(
-        "/api/quizapp/remove/:id",
-        [authJwt.verifyToken, authJwt.isUser],
-        user_controller.removeUser
+        "/api/user",
+        [authJwt.verifyToken, authJwt.isAdmin, userRules.forFindingUser],
+        removeUser
     );
 
     // ----- User routes
@@ -95,19 +100,19 @@ module.exports = function (app) {
     // Result routes -----
 
     app.post(
-        "/api/quizapp/result",
-        [authJwt.verifyToken, authJwt.isUser],
-        results_controller.addResult
+        "/api/result",
+        [authJwt.verifyToken, authJwt.isUser, resultsRules.forAdding],
+        addResult
     );
     app.get(
-        "/api/quizapp/backoffice/results",
+        "/api/backoffice/results",
         [authJwt.verifyToken, authJwt.isAdmin],
-        results_controller.getAllResults
+        getAllResults
     );
     app.get(
-        "/api/quizapp/results/",
+        "/api/results/",
         [authJwt.verifyToken, authJwt.isUser],
-        results_controller.getUserResults
+        getUserResults
     );
 
     // ----- Result routes

@@ -1,113 +1,132 @@
-const db = require("../models");
-const config = require("../config/auth.config");
+import { validationResult, matchedData } from 'express-validator';
+import jwt from "jsonwebtoken";
+import bycrypt from "bcryptjs";
+import { v4 as uuidv4 } from 'uuid';
+import { ServerError, CreationSuccessResponse, SuccessResponse, ConflictError, ValidationError, UnauthorizedError, NotFoundError } from '../common/index.js';
+import db from "../models/index.js";
+import { secret } from "../config/auth.config.js";
+
 const User = db.user;
 const Admin = db.admin;
 // const Op = db.Sequelize.Op;
-var jwt = require("jsonwebtoken");
-var bcrypt = require("bcryptjs");
+const { sign } = jwt;
+const { hashSync } = bycrypt;
+const { compareSync } = bycrypt;
 
-exports.userSignup = (req, res) => {
-    if (!req.body) {
-        res.status(400).send({ message: "Content can not be empty!" });
+export function userSignup(req, res) {
+    const errors = validationResult(req);
+
+    if (!errors.isEmpty()) {
+        ValidationError(res, "Validation Error Occured", errors.array())
+    }
+    else {
+        const payload = matchedData(req);
+
+        User.create({ ...payload, unique_id: uuidv4(), password: hashSync(payload.password, 8) })
+            .then(user => {
+                CreationSuccessResponse(res, "User was registered successfully!", { unique_id: user.unique_id });
+            }).catch(err => {
+                if (err.original.code === 'ER_DUP_ENTRY') {
+                    ConflictError(res, "Email already exists", null);
+                } else {
+                    ServerError(res, err.original.sqlMessage, null);
+                }
+            });
+    }
+};
+
+export function adminSignup(req, res) {
+    const errors = validationResult(req);
+
+    if (!errors.isEmpty()) {
+        ValidationError(res, "Validation Error Occured", errors.array())
+    }
+    else {
+        const payload = matchedData(req);
+
+        Admin.create({ ...payload, unique_id: uuidv4(), password: hashSync(payload.password, 8) })
+            .then(admin => {
+                CreationSuccessResponse(res, "Admin was registered successfully!", { unique_id: admin.unique_id });
+            }).catch(err => {
+                if (err.original.code === 'ER_DUP_ENTRY') {
+                    ConflictError(res, "Email already exists", null);
+                } else {
+                    ServerError(res, err.original.sqlMessage, null);
+                }
+            });
+    }
+};
+
+export function userSignin(req, res) {
+    const errors = validationResult(req);
+
+    if (!errors.isEmpty()) {
+        ValidationError(res, "Validation Error Occured", errors.array())
+    }
+    else {
+        const payload = matchedData(req);
+
+        User.findOne({
+            where: { email: payload.email }
+        })
+            .then(user => {
+                if (!user) {
+                    NotFoundError(res, "User not found", null);
+                } else {
+                    const passwordIsValid = compareSync(payload.password, user.password);
+                    if (!passwordIsValid) {
+                        UnauthorizedError(res, "Invalid Password!", null);
+                    } else {
+                        const token = sign({ unique_id: user.unique_id }, secret, {
+                            expiresIn: 86400 // 24 hours
+                        });
+                        SuccessResponse(res, "Logged in successfully!", { 
+                            token,
+                            fullname: user.firstname + " " + user.lastname,
+                            email: user.email,
+                        });
+                    }
+                }
+            }).catch(err => {
+                ServerError(res, err.message, null);
+            });
     }
 
-    User.create({
-        firstName: req.body.firstname,
-        lastName: req.body.lastname,
-        email: req.body.email,
-        password: bcrypt.hashSync(req.body.password, 8)
-    }).then(user => {
-        res.status(200).send({ message: "User was registered successfully!" });
-    }).catch(err => {
-        res.status(500).send({ message: err.message });
-    });
-}
+};
 
-exports.adminSignup = (req, res) => {
-    if (!req.body) {
-        res.status(400).send({ message: "Content can not be empty!" });
+export function adminSignin(req, res) {
+    const errors = validationResult(req);
+
+    if (!errors.isEmpty()) {
+        ValidationError(res, "Validation Error Occured", errors.array())
+    }
+    else {
+        const payload = matchedData(req);
+
+        Admin.findOne({
+            where: { email: payload.email }
+        })
+            .then(admin => {
+                if (!admin) {
+                    NotFoundError(res, "Admin not found", null);
+                } else {
+                    const passwordIsValid = compareSync(payload.password, admin.password);
+                    if (!passwordIsValid) {
+                        UnauthorizedError(res, "Invalid Password!", null);
+                    } else {
+                        const token = sign({ unique_id: admin.unique_id }, secret, {
+                            expiresIn: 86400 // 24 hours
+                        });
+                        SuccessResponse(res, "Logged in successfully!", {
+                            token,
+                            fullname: admin.firstname + " " + admin.lastname,
+                            email: admin.email,
+                        });
+                    }
+                }
+            }).catch(err => {
+                ServerError(res, err.message, null);
+            });
     }
 
-    Admin.create({
-        firstName: req.body.firstname,
-        lastName: req.body.lastname,
-        email: req.body.email,
-        password: bcrypt.hashSync(req.body.password, 8)
-    }).then(user => {
-        res.status(200).send({ message: "Admin was registered successfully!" });
-    }).catch(err => {
-        res.status(500).send({ message: err.message });
-    });
-}
-
-exports.userSignin = (req, res) => {
-    User.findOne({
-        where: {
-            email: req.body.email
-        }
-    }).then(user => {
-        if (!user) {
-            return res.status(404).send({ message: "User Not found." });
-        }
-        var passwordIsValid = bcrypt.compareSync(
-            req.body.password,
-            user.password
-        );
-        if (!passwordIsValid) {
-            return res.status(401).send({
-                accessToken: null,
-                message: "Invalid Password!"
-            });
-        }
-        var token = jwt.sign({ id: user.id }, config.secret, {
-            expiresIn: 86400 // 24 hours
-        });
-        res.status(200).send({
-            // id: user.id,
-            fullname: user.firstName + " " + user.lastName,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            email: user.email,
-            accessToken: token
-        });
-
-    }).catch(err => {
-        res.status(500).send({ message: err.message });
-    });
-}
-
-exports.adminSignin = (req, res) => {
-    Admin.findOne({
-        where: {
-            email: req.body.email
-        }
-    }).then(user => {
-        if (!user) {
-            return res.status(404).send({ message: "Admin Not found." });
-        }
-        var passwordIsValid = bcrypt.compareSync(
-            req.body.password,
-            user.password
-        );
-        if (!passwordIsValid) {
-            return res.status(401).send({
-                accessToken: null,
-                message: "Invalid Password!"
-            });
-        }
-        var token = jwt.sign({ id: user.id }, config.secret, {
-            expiresIn: 86400 // 24 hours
-        });
-        res.status(200).send({
-            // id: user.id,
-            fullname: user.firstName + " " + user.lastName,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            email: user.email,
-            accessToken: token
-        });
-
-    }).catch(err => {
-        res.status(500).send({ message: err.message });
-    });
-}
+};

@@ -1,189 +1,142 @@
-const db = require("../models");
+import { validationResult, matchedData } from 'express-validator';
+import { v4 as uuidv4 } from 'uuid';
+import { ServerError, SuccessResponse, ValidationError, OtherSuccessResponse, CreationSuccessResponse, NotFoundError } from '../common/index.js';
+import db from "../models/index.js";
 const Questions = db.questions;
 const Admin = db.admin;
 
-const validateValues = (values, res) => {
-    const answersOption = ['Option 1', 'Option 2', 'Option 3', 'Option 4'];
+export function getAdminQuestions(req, res) {
+    Questions.findAndCountAll({
+        attributes: { exclude: ['id'] },
+        order: [
+            ['createdAt', 'DESC']
+        ],
+        include: [
+            {
+                model: Admin,
+                attributes: ['firstname', 'lastname', 'email']
+            }
+        ],
+    }).then(questions => {
+        if (!questions || questions.length == 0) {
+            SuccessResponse(res, "Questions Not found", []);
+        } else {
+            SuccessResponse(res, "Questions loaded", questions);
+        }
+    }).catch(err => {
+        ServerError(res, err.message, null);
+    });
+};
 
-    if (values.question == "" || values.question == undefined) {
-        res.status(400).send({
-            message: "Question is required"
-        });
-        return 0;
-    }
-    else if (values.option1 == "" || values.option1 == undefined) {
-        res.status(400).send({
-            message: "Option 1 is required"
-        });
-        return 0;
-    }
-    else if (values.option2 == "" || values.option2 == undefined) {
-        res.status(400).send({
-            message: "Option 2 is required"
-        });
-        return 0;
-    }
-    else if (values.option3 == "" || values.option3 == undefined) {
-        res.status(400).send({
-            message: "Option 3 is required"
-        });
-        return 0;
-    }
-    else if (values.option4 == "" || values.option4 == undefined) {
-        res.status(400).send({
-            message: "Option 4 is required"
-        });
-        return 0;
-    }
-    else if (values.answer == "" || values.answer == undefined) {
-        res.status(400).send({
-            message: "Answer is required"
-        });
-        return 0;
-    }
-    else if (!answersOption.includes(values.answer)) {
-        res.status(400).send({
-            message: "Answer has to be - Option 1, Option 2, Option 3 or Option 4"
-        });
-        return 0;
+export function getQuestions(req, res) {
+    Questions.findAndCountAll({
+        attributes: { exclude: ['id', 'createdAt', 'updatedAt', 'admin_unique_id'] },
+        order: [
+            ['createdAt', 'DESC']
+        ]
+    }).then(questions => {
+        if (!questions || questions.length == 0) {
+            SuccessResponse(res, "Questions Not found", []);
+        } else {
+            SuccessResponse(res, "Questions loaded", questions);
+        }
+    }).catch(err => {
+        ServerError(res, err.message, null);
+    });
+};
+
+export function getQuestion(req, res) {
+    const errors = validationResult(req);
+
+    if (!errors.isEmpty()) {
+        ValidationError(res, "Validation Error Occured", errors.array())
     }
     else {
-        return 1;
+        const payload = matchedData(req);
+
+        Questions.findOne({
+            attributes: { exclude: ['id', 'createdAt', 'updatedAt', 'admin_unique_id'] },
+            where: {
+                ...payload
+            }
+        }).then(question => {
+            if (!question) {
+                NotFoundError(res, "Question not found", null);
+            } else {
+                SuccessResponse(res, "Question loaded", question);
+            }
+        }).catch(err => {
+            ServerError(res, err.message, null);
+        });
     }
 };
 
-exports.getAdminQuestions = (req, res) => {
-    Questions.findAll().then(questions => {
-        if (!questions) {
-            return res.status(404).send({ message: "Questions Not found." });
-        }
-        res.status(200).send(questions);
-    }).catch(err => {
-        res.status(500).send({ message: err.message });
-    });
-}
+export function addQuestion(req, res) {
+    const admin_unique_id = req.UNIQUE_ID;
+    const errors = validationResult(req);
 
-exports.getQuestions = (req, res) => {
-    Questions.findAll({
-        attributes: { exclude: ['id', 'createdAt', 'updatedAt'] }
-    }).then(questions => {
-        if (!questions) {
-            return res.status(404).send({ message: "Questions Not found." });
-        }
-        res.status(200).send(questions);
-    }).catch(err => {
-        res.status(500).send({ message: err.message });
-    });
-}
-
-exports.getQuestion = (req, res) => {
-    Questions.findByPk(req.params.id).then(question => {
-        if (!question) {
-            return res.status(404).send({ message: `Question with id - ${req.params.id} Not found.` });
-        }
-        res.status(200).send(question);
-    }).catch(err => {
-        res.status(500).send({ message: err.message });
-    });
-}
-
-exports.addQuestion = (req, res) => {
-    if (!req.body) {
-        res.status(400).send({
-            message: "Content can not be empty!"
-        });
+    if (!errors.isEmpty()) {
+        ValidationError(res, "Validation Error Occured", errors.array())
     }
+    else {
+        const payload = matchedData(req);
 
-    Admin.findByPk(req.body.adminId).then(admin => {
-        if (!admin) {
-            return res.status(404).send({ message: "Admin Not found." });
-        }
-        else {
-            if (validateValues(req.body, res) == 1) {
-                Questions.create({
-                    adminId: req.body.adminId,
-                    question: req.body.question,
-                    option1: req.body.option1,
-                    option2: req.body.option2,
-                    option3: req.body.option3,
-                    option4: req.body.option4,
-                    answer: req.body.answer
-                }).then(question => {
-                    res.status(200).send({ message: "Question was added successfully!", data: question });
-                }).catch(err => {
-                    res.status(500).send({ message: err.message });
-                });
+        Questions.create({ ...payload, unique_id: uuidv4(), admin_unique_id })
+            .then(question => {
+                CreationSuccessResponse(res, "Question was added successfully!");
+            }).catch(err => {
+                ServerError(res, err.message, null);
+            });
+    }
+};
+
+export function updateQuestion(req, res) {
+    const admin_unique_id = req.UNIQUE_ID;
+    const errors = validationResult(req);
+
+    if (!errors.isEmpty()) {
+        ValidationError(res, "Validation Error Occured", errors.array())
+    }
+    else {
+        const payload = matchedData(req);
+
+        Questions.update({ ...payload, admin_unique_id }, {
+            where: {
+                unique_id: payload.unique_id,
             }
-        }
-    }).catch(err => {
-        res.status(500).send({ message: err.message });
-    });
-}
-
-exports.updateQuestion = (req, res) => {
-    if (!req.body) {
-        res.status(400).send({
-            message: "Content can not be empty!"
+        }).then(data => {
+            if (data == 0) {
+                NotFoundError(res, "Question not found", null);
+            } else {
+                OtherSuccessResponse(res, "Question details updated successfully!");
+            }
+        }).catch(err => {
+            ServerError(res, err.message, null);
         });
     }
+};
 
-    Admin.findByPk(req.body.adminId).then(admin => {
-        if (!admin) {
-            return res.status(404).send({ message: "Admin Not found." });
-        }
-        else {
-            Questions.update({
-                adminId: req.body.adminId,
-                question: req.body.question,
-                option1: req.body.option1,
-                option2: req.body.option2,
-                option3: req.body.option3,
-                option4: req.body.option4,
-                answer: req.body.answer
-            }, {
-                where: {
-                    id: req.params.id
-                }
-            }).then(data => {
-                if (data == 0) {
-                    return res.status(404).send({ message: "Question Not found." });
-                }
-                res.status(200).send(req.body);
-            }).catch(err => {
-                res.status(500).send({ message: err.message });
-            });
-        }
-    }).catch(err => {
-        res.status(500).send({ message: err.message });
-    });
-}   
+export function removeQuestion(req, res) {
+    const errors = validationResult(req);
 
-exports.removeQuestion = (req, res) => {
-    if (!req.body) {
-        res.status(400).send({
-            message: "Content can not be empty!"
+    if (!errors.isEmpty()) {
+        ValidationError(res, "Validation Error Occured", errors.array())
+    }
+    else {
+        const payload = matchedData(req);
+
+        Questions.destroy({
+            where: {
+                ...payload
+            }
+        }).then(data => {
+            if (!data) {
+                NotFoundError(res, "Question not found", null);
+            } else {
+                OtherSuccessResponse(res, "Question deleted successfully!");
+            }
+        }).catch(err => {
+            ServerError(res, err.message, null);
         });
     }
-
-    Admin.findByPk(req.body.adminId).then(admin => {
-        if (!admin) {
-            return res.status(404).send({ message: "Admin Not found." });
-        }
-        else {
-            Questions.destroy({
-                where: {
-                    id: req.params.id
-                }
-            }).then(data => {
-                if (!data) {
-                    return res.status(404).send({ message: "Question Not found." });
-                }
-                res.status(200).send({ message: `Question wiwth id - ${req.params.id} has been removed` });
-            }).catch(err => {
-                res.status(500).send({ message: err.message });
-            });
-        }
-    }).catch(err => {
-        res.status(500).send({ message: err.message });
-    });
-}
+};
